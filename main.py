@@ -2,54 +2,86 @@ import sys
 
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
+import qasync
+import asyncio
 
-from widgets.LogWidget import ErrorLog, LogControls
-import LogManager
+from widgets.LogWidget import CombinedErrorLog
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setFixedSize(960, 540)
-        self.setWindowTitle("Youtube Music")
-        try:
-            self.testbutton = QPushButton("test")
-            self.testbutton.clicked.connect(self.testclicked)
-            self.testbutton.move(10, 10)
-            self.setCentralWidget(self.testbutton)
-        except:
-            print("something went wrong with button")
-
-        self.setup_log_ui()
+        self.setWindowTitle("Youtube Music At Home")
         
-    def setup_log_ui(self):
+        # Create central widget
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        
+        # Main layout
+        layout = QVBoxLayout(central_widget)
+        
         # Main content area
-        # self.main_content = QTextEdit(self)
-        # self.main_content.setGeometry(0, 0, 960, 540)
-        
-        # Error log in bottom-left corner
-        self.error_log = ErrorLog(self)
-        self.error_log.setGeometry(10, 540-190, 400, 180)  # x, y, w, h
-        
-        # Log controls
-        self.log_controls = LogControls(self.error_log, self)
-        self.log_controls.setGeometry(10, 540-230, 390, 50)
+        # self.testbutton = QPushButton("press")
+        # self.testbutton.clicked.connect(lambda: self.buttonclick(self.testbutton))
+        # layout.addWidget(self.testbutton, stretch=1)
+        self.playlistbox = QComboBox()
+        layout.addWidget(self.playlistbox)
 
-    def generate_test_messages(self):
-        self.error_log.error("Global error message")
-        self.error_log.info("Test button clicked")
-        self.error_log.warning("Sample warning message")
-        self.error_log.error("Sample error message")
-        self.error_log.debug("Debug information")
+        #song table view
+        self.songtable = QTableView()
+        self.songtable.setMinimumHeight(300)
+        layout.addWidget(self.songtable)
 
-    def testclicked(self):
-        self.generate_test_messages()
+        #placeholder for controlls
+        self.controllplaceholder = QTextEdit()
+        self.controllplaceholder.setMinimumHeight(50)
+        self.controllplaceholder.setMaximumHeight(70)
+        layout.addWidget(self.controllplaceholder)
+        
+        # Add the combined log widget
+        self.error_log = CombinedErrorLog()
+        self.error_log.setMaximumHeight(200)
+        self.error_log.setMinimumHeight(150)
+        #self.error_log.setMaximumWidth(400)
+        layout.addWidget(self.error_log, alignment=Qt.AlignmentFlag.AlignBottom)
+
+    def buttonclick(self, button:QPushButton):
+        asyncio.create_task(self.on_async_button(button))
+    
+    async def on_async_button(self, button:QPushButton):
+        if button == self.testbutton:
+            try:
+                
+                button.setEnabled(False)
+                self.error_log.info("Starting async operation")
+                
+                # Simulate async work
+                await asyncio.sleep(1)
+                self.error_log.warning("Still working...")
+                
+                await asyncio.sleep(1)
+                self.error_log.info("Operation complete")
+                
+            except Exception as e:
+                self.error_log.error(f"Async error: {str(e)}")
+            finally:
+                button.setEnabled(True)
+        else:
+            self.error_log.error(f"{button.text()} button was pressed with no valid functions")
+
+
+async def main():
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+
+    app.aboutToQuit.connect(lambda: asyncio.get_running_loop().stop())
+
+    await qasync.QEventLoop(app).run_forever()
 
     
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-
-    window = MainWindow()
-    window.show()
-
-    app.exec()
+    try:
+        asyncio.run(main())
+    except asyncio.exceptions.CancelledError:
+        pass
