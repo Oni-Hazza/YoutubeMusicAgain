@@ -3,14 +3,17 @@ import psutil
 import signal
 import qasync
 import asyncio
+import random
 
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QCursor
 import vlc
 import yt_dlp
 
 from widgets.LogWidget import CombinedErrorLog
+from widgets.playbackControlsWidgets import PlaybackControls
 from youtubefunc.youtubelogin import authrequest
 
 import youtubefunc.ytdlpstuff
@@ -41,23 +44,30 @@ class MainWindow(QMainWindow):
 
         #song table view
         self.songlistview = QListWidget()
-        self.songlistview.setMinimumHeight(300)
+        self.songlistview.setMinimumHeight(250)
         layout.addWidget(self.songlistview)
         self.songlistview.itemClicked.connect(self.songlistViewSelectionChanged)
         self.songlistview.itemActivated.connect(self.songlistViewItemActivated)
+        self.songlistview.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.songlistview.customContextMenuRequested.connect(self.songlistcontextmenuactivate)
 
-        #placeholder for controlls
-        # self.controllplaceholder = QTextEdit()
-        # self.controllplaceholder.setMinimumHeight(50)
-        # self.controllplaceholder.setMaximumHeight(70)
-        # layout.addWidget(self.controllplaceholder)
+        #songlist context menu
+        self.songlistContextMenu = QMenu(self)
+        shuffle = self.songlistContextMenu.addAction("Shuffle playlist into queue")
+        addToQueue = self.songlistContextMenu.addAction("Add to queue")
+        playNext = self.songlistContextMenu.addAction("Play next")
+        shuffle.triggered.connect(self.contextmenushuffletrigger)
+        addToQueue.triggered.connect(self.contextmenuaddtoqueuetrigger)
+        playNext.triggered.connect(self.contextmenuplaynexttrigger)
 
-        self.volumeSlider = QSlider()
-        self.volumeSlider.setToolTip("Volume")
-        self.volumeSlider.setMaximum(100)
-        self.volumeSlider.setValue(self.mediaplayer.audio_get_volume())
-        self.volumeSlider.sliderMoved.connect(self.setVolume)
-        layout.addWidget(self.volumeSlider)
+        
+
+        self.playbackcontrols = PlaybackControls(self)
+
+        self.playbackcontrols.volume_slider.valueChanged.connect(self.setVolume)
+        self.playbackcontrols.play_button.clicked.connect(self.playPauseClicked)
+
+        layout.addWidget(self.playbackcontrols)
         
         # # Add the combined log widget
         # self.error_log = CombinedErrorLog()
@@ -66,14 +76,20 @@ class MainWindow(QMainWindow):
         # #self.error_log.setMaximumWidth(400)
         # layout.addWidget(self.error_log, alignment=Qt.AlignmentFlag.AlignBottom)
 
+        self.queueboxMenu = QMenu(self)
+        clearqueueaction = self.queueboxMenu.addAction("Clear Queue")
+        clearqueueaction.triggered.connect(self.clearqueuepressed)
         self.queueBox = QListWidget()
         self.queueBox.setMaximumHeight(200)
         self.queueBox.setMinimumHeight(100)
         self.queueBox.setMinimumWidth(350)
+        self.queueBox.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.queueBox.customContextMenuRequested.connect(self.queuecontextmenurequested)
         layout.addWidget(self.queueBox, alignment=Qt.AlignmentFlag.AlignBottom)
 
         self.playlists = {}
         self.songlist = {}
+        self.queuelist = {}
 
         self.youtubeClient= authrequest()
 
@@ -82,15 +98,59 @@ class MainWindow(QMainWindow):
 
         self.populatePlaylistdict()
 
+        self.timer = QTimer(self)
+        self.timer.setInterval(100)
+        self.timer.timeout.connect(self.timerTick)
+        self.timer.start()
+
+    def clearqueuepressed(self):
+        self.queuelist.clear()
+        self.queueBox.clear()
+        self.queueBox.repaint()
+    def queuecontextmenurequested(self, event):
+        self.queueboxMenu.exec(QCursor.pos())
+
+    def contextmenushuffletrigger(self):
+        if self.songlist.__len__() < 1:
+            return
+        keys = list(self.songlist.keys())
+        random.shuffle(keys)
+        for key in keys:
+            self.queuelist.update({key:self.songlist[key]})
+            self.queueBox.addItem(key)
+        self.queueBox.repaint()
+    def contextmenuplaynexttrigger(self):
+        pass
+    def contextmenuaddtoqueuetrigger(self):
+        pass
+    def songlistcontextmenuactivate(self, event:QPoint):
+        self.songlistContextMenu.exec(QCursor.pos())
+    
+    def timerTick(self):
+        state = self.mediaplayer.get_state()
+        if state == vlc.State.Playing or state == vlc.State.Paused:
+            media_pos = int(self.mediaplayer.get_position() * 100)
+            self.playbackcontrols.progress_slider.setValue(media_pos)
+        else:
+            pass
+
+    def playPauseClicked(self):
+        state = self.mediaplayer.get_state()
+        if state == vlc.State.Paused or state == vlc.State.Playing:
+            self.mediaplayer.pause()
+        else:
+            pass
+    def skipButtonClicked(self):
+        pass
+    def stopButtonClicked(self):
+        if self.mediaplayer.is_playing():
+            self.mediaplayer.stop()
     def setVolume(self, volume):
         self.mediaplayer.audio_set_volume(volume)
 
     def playlistBoxSelectionChange(self):
         if self.playlistcombobox.currentIndex() == -1:
             return
-        print("Combo box selection changed")
-        print(self.playlistcombobox.currentIndex())
-        print(self.playlists[self.playlistcombobox.currentText()])
         asyncio.create_task(self.populateSongList())
     
     async def populateSongList(self):
@@ -113,17 +173,13 @@ class MainWindow(QMainWindow):
                     playlistId=self.playlists[self.playlistcombobox.currentText()]['id'],
                     pageToken=nextpagetoken
                 )
-                print(self.playlists[self.playlistcombobox.currentText()])
                 
                 response = request.execute()
-
-                print(response)
 
                 for s in response["items"]:
                     if s['snippet']['title'].lower() in ['deleted video', 'private video']:
                         continue
                     self.songlist.update({s['snippet']['title']:s['snippet']['resourceId']['videoId']})
-                    print(s['snippet']['title'])
                     self.songlistview.addItem(s['snippet']['title'])
                     self.playlists[self.playlistcombobox.currentText()]['playlistCache'].update({s['snippet']['title']:s['snippet']['resourceId']['videoId']})
                 
@@ -160,12 +216,13 @@ class MainWindow(QMainWindow):
         self.mediaplayer.play()
 
     def songlistViewSelectionChanged(self):
-        if self.songlistview.currentRow() == -1:
-            return
-        playlist = self.playlistcombobox.currentText()
-        song = self.songlistview.currentItem().text()
-        id = self.playlists[playlist]['playlistCache'][song]
-        print(f"{id}")
+        pass
+        # if self.songlistview.currentRow() == -1:
+        #     return
+        # playlist = self.playlistcombobox.currentText()
+        # song = self.songlistview.currentItem().text()
+        # id = self.playlists[playlist]['playlistCache'][song]
+        # print(f"{id}")
 
     def populatePlaylistdict(self):
         request = self.youtubeClient.youtube.playlists().list(
