@@ -3,3 +3,5 @@ __pycache__/LogManager.cpython-312.pyc
 /.idea
 /__pycache__
 *.pyc
+client_secret.json
+test.json
