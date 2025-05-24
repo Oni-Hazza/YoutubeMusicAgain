@@ -1,17 +1,31 @@
 import sys
-
-from PyQt6.QtWidgets import *
-from PyQt6.QtCore import *
+import psutil
+import signal
 import qasync
 import asyncio
 
+from PyQt6.QtWidgets import *
+from PyQt6.QtCore import *
+from PyQt6.QtGui import QIcon
+import vlc
+import yt_dlp
+
 from widgets.LogWidget import CombinedErrorLog
 from youtubefunc.youtubelogin import authrequest
+
+import youtubefunc.ytdlpstuff
+import resources
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Youtube Music At Home")
+
+        self.instance = vlc.Instance()
+
+        self.mediaplayer = self.instance.media_player_new()
+        self.mediaplayer.audio_set_volume(50)
+
         
         # Create central widget
         central_widget = QWidget()
@@ -30,19 +44,33 @@ class MainWindow(QMainWindow):
         self.songlistview.setMinimumHeight(300)
         layout.addWidget(self.songlistview)
         self.songlistview.itemClicked.connect(self.songlistViewSelectionChanged)
+        self.songlistview.itemActivated.connect(self.songlistViewItemActivated)
 
         #placeholder for controlls
-        self.controllplaceholder = QTextEdit()
-        self.controllplaceholder.setMinimumHeight(50)
-        self.controllplaceholder.setMaximumHeight(70)
-        layout.addWidget(self.controllplaceholder)
+        # self.controllplaceholder = QTextEdit()
+        # self.controllplaceholder.setMinimumHeight(50)
+        # self.controllplaceholder.setMaximumHeight(70)
+        # layout.addWidget(self.controllplaceholder)
+
+        self.volumeSlider = QSlider()
+        self.volumeSlider.setToolTip("Volume")
+        self.volumeSlider.setMaximum(100)
+        self.volumeSlider.setValue(self.mediaplayer.audio_get_volume())
+        self.volumeSlider.sliderMoved.connect(self.setVolume)
+        layout.addWidget(self.volumeSlider)
         
-        # Add the combined log widget
-        self.error_log = CombinedErrorLog()
-        self.error_log.setMaximumHeight(200)
-        self.error_log.setMinimumHeight(150)
-        #self.error_log.setMaximumWidth(400)
-        layout.addWidget(self.error_log, alignment=Qt.AlignmentFlag.AlignBottom)
+        # # Add the combined log widget
+        # self.error_log = CombinedErrorLog()
+        # self.error_log.setMaximumHeight(200)
+        # self.error_log.setMinimumHeight(150)
+        # #self.error_log.setMaximumWidth(400)
+        # layout.addWidget(self.error_log, alignment=Qt.AlignmentFlag.AlignBottom)
+
+        self.queueBox = QListWidget()
+        self.queueBox.setMaximumHeight(200)
+        self.queueBox.setMinimumHeight(100)
+        self.queueBox.setMinimumWidth(350)
+        layout.addWidget(self.queueBox, alignment=Qt.AlignmentFlag.AlignBottom)
 
         self.playlists = {}
         self.songlist = {}
@@ -54,12 +82,15 @@ class MainWindow(QMainWindow):
 
         self.populatePlaylistdict()
 
+    def setVolume(self, volume):
+        self.mediaplayer.audio_set_volume(volume)
+
     def playlistBoxSelectionChange(self):
         if self.playlistcombobox.currentIndex() == -1:
             return
-        self.error_log.debug("Combo box selection changed")
-        self.error_log.debug(self.playlistcombobox.currentIndex())
-        self.error_log.debug(self.playlists[self.playlistcombobox.currentText()])
+        print("Combo box selection changed")
+        print(self.playlistcombobox.currentIndex())
+        print(self.playlists[self.playlistcombobox.currentText()])
         asyncio.create_task(self.populateSongList())
     
     async def populateSongList(self):
@@ -71,7 +102,7 @@ class MainWindow(QMainWindow):
         
         if len(self.playlists[self.playlistcombobox.currentText()]['playlistCache']) == 0:
             
-            self.error_log.debug("populating song list")
+            print("populating song list")
 
             nextpagetoken=""
             while nextpagetoken != None:
@@ -82,17 +113,17 @@ class MainWindow(QMainWindow):
                     playlistId=self.playlists[self.playlistcombobox.currentText()]['id'],
                     pageToken=nextpagetoken
                 )
-                self.error_log.debug(self.playlists[self.playlistcombobox.currentText()])
+                print(self.playlists[self.playlistcombobox.currentText()])
                 
                 response = request.execute()
 
-                self.error_log.debug(response)
+                print(response)
 
                 for s in response["items"]:
                     if s['snippet']['title'].lower() in ['deleted video', 'private video']:
                         continue
                     self.songlist.update({s['snippet']['title']:s['snippet']['resourceId']['videoId']})
-                    self.error_log.debug(s['snippet']['title'])
+                    print(s['snippet']['title'])
                     self.songlistview.addItem(s['snippet']['title'])
                     self.playlists[self.playlistcombobox.currentText()]['playlistCache'].update({s['snippet']['title']:s['snippet']['resourceId']['videoId']})
                 
@@ -111,14 +142,30 @@ class MainWindow(QMainWindow):
         self.playlistcombobox.setEnabled(True)
         self.songlistview.setEnabled(True)
         
-    
+    def songlistViewItemActivated(self):
+        playlist = self.playlistcombobox.currentText()
+        song = self.songlistview.currentItem().text()
+        id = self.playlists[playlist]['playlistCache'][song]
+        self.queueBox.addItem(id)
+        try:
+            songstream = youtubefunc.ytdlpstuff.getAudioStream(id)
+        except Exception as e:
+            # pixmapi = getattr(QStyle.StandardPixmap, 'SP_MessageBoxWarning')
+            # icon = self.style().standardIcon(pixmapi)
+            dlg = QMessageBox(self, "Error!", e, QMessageBox.standardButton())
+            return
+
+        media = self.instance.media_new(songstream)
+        self.mediaplayer.set_media(media)
+        self.mediaplayer.play()
+
     def songlistViewSelectionChanged(self):
         if self.songlistview.currentRow() == -1:
             return
         playlist = self.playlistcombobox.currentText()
         song = self.songlistview.currentItem().text()
         id = self.playlists[playlist]['playlistCache'][song]
-        self.error_log.info(f"{id}")
+        print(f"{id}")
 
     def populatePlaylistdict(self):
         request = self.youtubeClient.youtube.playlists().list(
@@ -138,38 +185,13 @@ class MainWindow(QMainWindow):
         self.playlistcombobox.setCurrentIndex(-1)
         
 
-
-
-    def buttonclick(self, button:QPushButton):
-        asyncio.create_task(self.on_async_button(button))
-    
-    async def on_async_button(self, button:QPushButton):
-        if button == self.testbutton:
-            try:
-                
-                button.setEnabled(False)
-                self.error_log.info("Starting async operation")
-                
-                # Simulate async work
-                await asyncio.sleep(1)
-                self.error_log.warning("Still working...")
-                
-                await asyncio.sleep(1)
-                self.error_log.info("Operation complete")
-                
-            except Exception as e:
-                self.error_log.error(f"Async error: {str(e)}")
-            finally:
-                button.setEnabled(True)
-        else:
-            self.error_log.error(f"{button.text()} button was pressed with no valid functions")
-
     def __del__(self):
         del self.youtubeClient
 
 
 async def main():
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon(':/icons/icon.png'))
     window = MainWindow()
     window.show()
     
@@ -178,10 +200,20 @@ async def main():
 
     await qasync.QEventLoop(app).run_forever()
 
-    
+def kill_all_children():
+    current_process = psutil.Process()
+    children = current_process.children(recursive=True)
+    for child in children:
+        child.send_signal(signal.SIGTERM)
+
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except asyncio.exceptions.CancelledError:
         pass
+    except TypeError:
+        pass
+
+    kill_all_children()
+
