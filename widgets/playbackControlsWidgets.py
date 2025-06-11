@@ -35,7 +35,7 @@ class PlaybackControls(QWidget):
         control_layout.addWidget(self.play_button)
 
         self.stop_button = QPushButton()
-        self.stop_button.setToolTip("Stop playback")
+        self.stop_button.setToolTip("Stop playback and clear queue")
         self.stop_button.setMaximumHeight(100)
         self.stop_button.setIcon(QIcon.fromTheme("media-playback-stop"))
         control_layout.addWidget(self.stop_button)

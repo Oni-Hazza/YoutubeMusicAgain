@@ -4,6 +4,7 @@ import signal
 import qasync
 import asyncio
 import random
+import webbrowser
 
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
@@ -28,6 +29,9 @@ class MainWindow(QMainWindow):
 
         self.mediaplayer = self.instance.media_player_new()
         self.mediaplayer.audio_set_volume(50)
+        # self.events = self.mediaplayer.event_manager()
+        # self.events.event_attach(vlc.EventType.MediaPlayerEndReached, self.mediaplayerended)
+        
 
         
         # Create central widget
@@ -56,9 +60,11 @@ class MainWindow(QMainWindow):
         shuffle = self.songlistContextMenu.addAction("Shuffle playlist into queue")
         addToQueue = self.songlistContextMenu.addAction("Add to queue")
         playNext = self.songlistContextMenu.addAction("Play next")
+        openInYoutube = self.songlistContextMenu.addAction("Open in youtube")
         shuffle.triggered.connect(self.contextmenushuffletrigger)
         addToQueue.triggered.connect(self.contextmenuaddtoqueuetrigger)
         playNext.triggered.connect(self.contextmenuplaynexttrigger)
+        openInYoutube.triggered.connect(self.contextmenuopeninyoutubetrigger)
 
         
 
@@ -66,6 +72,9 @@ class MainWindow(QMainWindow):
 
         self.playbackcontrols.volume_slider.valueChanged.connect(self.setVolume)
         self.playbackcontrols.play_button.clicked.connect(self.playPauseClicked)
+        self.playbackcontrols.stop_button.clicked.connect(self.stopButtonClicked)
+        self.playbackcontrols.progress_slider.sliderMoved.connect(self.setPosition)
+        self.playbackcontrols.skip_button.clicked.connect(self.skipButtonClicked)
 
         layout.addWidget(self.playbackcontrols)
         
@@ -102,6 +111,36 @@ class MainWindow(QMainWindow):
         self.timer.setInterval(100)
         self.timer.timeout.connect(self.timerTick)
         self.timer.start()
+        
+    def mediaplayerended(self, state): #out of order for now
+        if self.queueBox.count() < 1:
+            return
+        if self.mediaplayer.get_state() != vlc.State.Ended:
+            return
+        items = []
+        for i in range(self.queueBox.count()):
+            items.append(self.queueBox.item(i).text())
+        for item in items:
+            nextToPlay = self.queuelist[item]
+            try:
+                songstream = youtubefunc.ytdlpstuff.getAudioStream(nextToPlay)
+                self.queueBox.takeItem(0)
+                self.queuelist.pop(item, None)
+                break
+            except:
+                continue                
+
+        self.queueBox.repaint()
+        try:
+            print(self.mediaplayer.will_play())
+            media = self.instance.media_new(songstream)
+            
+            self.mediaplayer.set_media(media)
+            if self.mediaplayer.play() == -1:
+                print("something went wrong...") #TODO this still doesnt work and im going crazy
+        except Exception as e:
+            print(e)
+        
 
     def clearqueuepressed(self):
         self.queuelist.clear()
@@ -125,14 +164,46 @@ class MainWindow(QMainWindow):
         pass
     def songlistcontextmenuactivate(self, event:QPoint):
         self.songlistContextMenu.exec(QCursor.pos())
+    def contextmenuopeninyoutubetrigger(self):
+        playlist = self.playlistcombobox.currentText()
+        song = self.songlistview.currentItem().text()
+        id = self.playlists[playlist]['playlistCache'][song]
+        link = f"https://youtu.be/{id}"
+        webbrowser.open(link, new=0, autoraise=True)
+
     
     def timerTick(self):
         state = self.mediaplayer.get_state()
+        print(state)
         if state == vlc.State.Playing or state == vlc.State.Paused:
             media_pos = int(self.mediaplayer.get_position() * 100)
             self.playbackcontrols.progress_slider.setValue(media_pos)
-        else:
-            pass
+        elif state == vlc.State.Ended or state == vlc.State.Stopped:
+            if self.queueBox.count() < 1:
+                return
+            items = []
+            for i in range(self.queueBox.count()):
+                items.append(self.queueBox.item(i).text())
+            for item in items:
+                nextToPlay = self.queuelist[item]
+                try:
+                    songstream = youtubefunc.ytdlpstuff.getAudioStream(nextToPlay)
+                    self.queueBox.takeItem(0)
+                    self.queuelist.pop(item, None)
+                    break
+                except:
+                    continue
+
+            self.queueBox.repaint()
+            try:
+                print(self.mediaplayer.will_play())
+                media = self.instance.media_new(songstream)
+                
+                self.mediaplayer.set_media(media)
+                if self.mediaplayer.play() == -1:
+                    print("something went wrong...") #TODO this still doesnt work and im going crazy
+            except Exception as e:
+                print(e)
 
     def playPauseClicked(self):
         state = self.mediaplayer.get_state()
@@ -141,12 +212,18 @@ class MainWindow(QMainWindow):
         else:
             pass
     def skipButtonClicked(self):
-        pass
+        self.mediaplayer.stop()
     def stopButtonClicked(self):
-        if self.mediaplayer.is_playing():
-            self.mediaplayer.stop()
+        state = self.mediaplayer.get_state()
+        if state == vlc.State.Paused or state == vlc.State.Playing:
+            self.queueBox.clear()
+            self.queuelist.clear()
+            self.mediaplayer.stop()        
+        self.queueBox.repaint()
     def setVolume(self, volume):
         self.mediaplayer.audio_set_volume(volume)
+    def setPosition(self, position):
+        self.mediaplayer.set_position(position/100)
 
     def playlistBoxSelectionChange(self):
         if self.playlistcombobox.currentIndex() == -1:
@@ -199,16 +276,19 @@ class MainWindow(QMainWindow):
         self.songlistview.setEnabled(True)
         
     def songlistViewItemActivated(self):
+        print(self.mediaplayer.get_state())
+        print(self.mediaplayer.will_play())
         playlist = self.playlistcombobox.currentText()
         song = self.songlistview.currentItem().text()
         id = self.playlists[playlist]['playlistCache'][song]
-        self.queueBox.addItem(id)
+        #self.queueBox.addItem(id)
         try:
             songstream = youtubefunc.ytdlpstuff.getAudioStream(id)
         except Exception as e:
             # pixmapi = getattr(QStyle.StandardPixmap, 'SP_MessageBoxWarning')
             # icon = self.style().standardIcon(pixmapi)
-            dlg = QMessageBox(self, "Error!", e, QMessageBox.standardButton())
+            print(e)
+            #dlg = QMessageBox.warning(self, "Error!", e.__str__())
             return
 
         media = self.instance.media_new(songstream)

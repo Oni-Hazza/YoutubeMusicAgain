@@ -5,7 +5,8 @@ ydl_opts = {
         'postprocessors':[{
             'key':'FFmpegExtractAudio',
             'preferredcodec': 'm4a',
-        }]
+        }],        
+        'noplaylist':True
     }
 
 def getAudioStream(link:str) -> str:
