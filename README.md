@@ -1,4 +1,4 @@
-# 🎵 YT Music App (PyQt6 + VLC)
+# 🎵 YT Music Again (PyQt6 + VLC)
 
 A desktop application for playing music using YouTube and VLC, built with Python and PyQt6.
 
@@ -6,14 +6,19 @@ A desktop application for playing music using YouTube and VLC, built with Python
 
 ## 📦 Features
 
-- Built with PyQt6 for a modern desktop UI
+- Built with PyQt6 for a simple desktop UI
 - Plays audio using `python-vlc`
-- Bundled with VLC plugins and libraries for cross-distro Linux support
 - Easily built into a standalone executable using PyInstaller
 
 ---
 
 ## 🚀 Quick Start
+
+### How to use
+On launch it should open a browser to authenticate access to your youtube playlists, if this doesnt work check that the `client_secrets.json` is in the directory.
+- Very simple layout
+    - pretty much everything is controlled with double clicks or context menus
+- very baseline features such as shuffling right now, will possibly add more functionality in the future
 
 ### 1. Clone the Repository
 
@@ -43,12 +48,15 @@ chmod +x generate_spec.sh
 pyinstaller --clean main.spec
 ```
 
+### 6. Youtube API keys
+You'll have to get your own API key, which can be done in the google developer website. Be sure to make one that uses the Youtube Data v3 api.
+
 ## 🐞 Troubleshooting
 - Missing VLC: Ensure VLC is installed and the correct .so files are available. The script will prompt you for paths if they can’t be found.
     - Ensure paths are correct for your os in the `main.spec` file if you continue to have issues with finding vlc files
 
 ## 📁 Project Structure
-Should look something like this
+Should look something like this with some other bits and bobs
 ```css
 YoutubeMusicAgain/
 ├── main.py

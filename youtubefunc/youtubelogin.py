@@ -11,7 +11,15 @@ class authrequest:
         self.youtube:googleapiclient.discovery.Resource=None
         self.api_service_name = "youtube"
         self.api_version = "v3"
-        self.client_secrets_file = "../client_secret.json"
+
+        default_path = "../client_secret.json"
+        fallback_path = "client_secret.json"
+        if os.path.exists(default_path):
+            self.client_secrets_file = default_path
+        elif os.path.exists(fallback_path):
+            self.client_secrets_file = fallback_path
+        else:
+            raise FileNotFoundError("client_secret.json not found in either ../ or current directory.")
 
     def makeAuthRequest(self)->bool:
         flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
