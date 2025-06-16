@@ -8,3 +8,6 @@ test.json
 Youtube_Music.ico
 cookies.txt
 /.vscode
+/dist
+/build
+main.spec
