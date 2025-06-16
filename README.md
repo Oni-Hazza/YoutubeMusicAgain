@@ -15,7 +15,7 @@ A desktop application for playing music using YouTube and VLC, built with Python
 ## 🚀 Quick Start
 
 ### How to use
-On launch it should open a browser to authenticate access to your youtube playlists, if this doesnt work check that the `client_secrets.json` is in the directory.
+On launch it should open a browser to authenticate access to your youtube playlists, if this doesnt work check that the `client_secrets.json` is in the directory. Alternatively you can just run it from the `main.py` as long as the requirements are installed in the venv.
 - Very simple layout
     - pretty much everything is controlled with double clicks or context menus
 - very baseline features such as shuffling right now, will possibly add more functionality in the future
@@ -49,11 +49,15 @@ pyinstaller --clean main.spec
 ```
 
 ### 6. Youtube API keys
-You'll have to get your own API key, which can be done in the google developer website. Be sure to make one that uses the Youtube Data v3 api. just make sure the file is `client_secrets.json`
+You'll have to get your own API key, which can be done in the google developer website. Be sure to make one that uses the Youtube Data v3 api. Just make sure the file is `client_secrets.json`
+
+### Installing to application menu (Linux only)
+Run `generate_install_scripts.sh` and then run `install.sh`. This also generates an `uninstall.sh`
 
 ## 🐞 Troubleshooting
 - Missing VLC: Ensure VLC is installed and the correct .so files are available. The script will prompt you for paths if they can’t be found.
     - Ensure paths are correct for your os in the `main.spec` file if you continue to have issues with finding vlc files
+- Any issues with installing to application menu could be due to a distro you're using having different paths and such
 
 ## 📁 Project Structure
 Should look something like this with some other bits and bobs

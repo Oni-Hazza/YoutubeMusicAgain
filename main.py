@@ -85,6 +85,12 @@ class MainWindow(QMainWindow):
         # #self.error_log.setMaximumWidth(400)
         # layout.addWidget(self.error_log, alignment=Qt.AlignmentFlag.AlignBottom)
 
+        self.queuelabel = QLabel(self)
+        self.queuelabel.setText("Queue:")
+        self.queuelabel.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        layout.addWidget(self.queuelabel)
+
         self.queueboxMenu = QMenu(self)
         clearqueueaction = self.queueboxMenu.addAction("Clear Queue")
         clearqueueaction.triggered.connect(self.clearqueuepressed)
