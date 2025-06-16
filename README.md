@@ -49,7 +49,7 @@ pyinstaller --clean main.spec
 ```
 
 ### 6. Youtube API keys
-You'll have to get your own API key, which can be done in the google developer website. Be sure to make one that uses the Youtube Data v3 api.
+You'll have to get your own API key, which can be done in the google developer website. Be sure to make one that uses the Youtube Data v3 api. just make sure the file is `client_secrets.json`
 
 ## 🐞 Troubleshooting
 - Missing VLC: Ensure VLC is installed and the correct .so files are available. The script will prompt you for paths if they can’t be found.
