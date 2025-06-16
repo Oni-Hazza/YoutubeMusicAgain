@@ -88,6 +88,8 @@ class MainWindow(QMainWindow):
         self.queueboxMenu = QMenu(self)
         clearqueueaction = self.queueboxMenu.addAction("Clear Queue")
         clearqueueaction.triggered.connect(self.clearqueuepressed)
+        removefromqueueaction = self.queueboxMenu.addAction("Remove item")
+        removefromqueueaction.triggered.connect(self.removefromqueuepressed)
         self.queueBox = QListWidget()
         self.queueBox.setMaximumHeight(200)
         self.queueBox.setMinimumHeight(100)
@@ -146,6 +148,12 @@ class MainWindow(QMainWindow):
         self.queuelist.clear()
         self.queueBox.clear()
         self.queueBox.repaint()
+    def removefromqueuepressed(self):
+        if self.queueBox.__len__() < 1:
+            return
+        index = self.queueBox.currentIndex()
+        if index.row() >= 0:
+            self.queueBox.takeItem(index.row())
     def queuecontextmenurequested(self, event):
         self.queueboxMenu.exec(QCursor.pos())
 
@@ -159,9 +167,24 @@ class MainWindow(QMainWindow):
             self.queueBox.addItem(key)
         self.queueBox.repaint()
     def contextmenuplaynexttrigger(self):
-        pass
+        if self.songlist.__len__() < 1:
+            return
+        playlist = self.playlistcombobox.currentText()
+        song = self.songlistview.currentItem().text()
+        id = self.playlists[playlist]['playlistCache'][song]
+        
+        self.queuelist.update({song:id})
+        self.queueBox.insertItem(0, song)
+        self.queueBox.repaint()
     def contextmenuaddtoqueuetrigger(self):
-        pass
+        if self.songlist.__len__() < 1:
+            return
+        playlist = self.playlistcombobox.currentText()
+        song = self.songlistview.currentItem().text()
+        id = self.playlists[playlist]['playlistCache'][song]
+        self.queuelist.update({song:id})
+        self.queueBox.addItem(song)
+        self.queueBox.repaint()
     def songlistcontextmenuactivate(self, event:QPoint):
         self.songlistContextMenu.exec(QCursor.pos())
     def contextmenuopeninyoutubetrigger(self):
@@ -174,7 +197,6 @@ class MainWindow(QMainWindow):
     
     def timerTick(self):
         state = self.mediaplayer.get_state()
-        print(state)
         if state == vlc.State.Playing or state == vlc.State.Paused:
             media_pos = int(self.mediaplayer.get_position() * 100)
             self.playbackcontrols.progress_slider.setValue(media_pos)
@@ -189,7 +211,7 @@ class MainWindow(QMainWindow):
                 try:
                     songstream = youtubefunc.ytdlpstuff.getAudioStream(nextToPlay)
                     self.queueBox.takeItem(0)
-                    self.queuelist.pop(item, None)
+                    #self.queuelist.pop(item, None) #stopped coz realistically theres no reason to remove this
                     break
                 except:
                     continue
@@ -223,7 +245,9 @@ class MainWindow(QMainWindow):
     def setVolume(self, volume):
         self.mediaplayer.audio_set_volume(volume)
     def setPosition(self, position):
-        self.mediaplayer.set_position(position/100)
+        state = self.mediaplayer.get_state()
+        if state == vlc.State.Playing:
+            self.mediaplayer.set_position(position/100)
 
     def playlistBoxSelectionChange(self):
         if self.playlistcombobox.currentIndex() == -1:
