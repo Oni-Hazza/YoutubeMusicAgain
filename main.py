@@ -29,19 +29,21 @@ class MainWindow(QMainWindow):
 
         self.mediaplayer = self.instance.media_player_new()
         self.mediaplayer.audio_set_volume(50)
+
+        #deactivated this because it doesnt like playing shit outside of the main thread...
         # self.events = self.mediaplayer.event_manager()
         # self.events.event_attach(vlc.EventType.MediaPlayerEndReached, self.mediaplayerended)
         
 
         
-        # Create central widget
+        #Create central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # Main layout
+        #Main layout
         layout = QVBoxLayout(central_widget)
         
-        # Main content area
+        #playlist combobox
         self.playlistcombobox = QComboBox()
         layout.addWidget(self.playlistcombobox)
         self.playlistcombobox.currentTextChanged.connect(self.playlistBoxSelectionChange)
@@ -66,31 +68,35 @@ class MainWindow(QMainWindow):
         playNext.triggered.connect(self.contextmenuplaynexttrigger)
         openInYoutube.triggered.connect(self.contextmenuopeninyoutubetrigger)
 
-        
+        #Shows what is currently playing
+        self.playingLabel = QLabel(self)
+        self.playingLabel.setText("Playing: ")
+        self.playingLabel.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.playingLabel)
 
+        #all controls in one widget coz its just easiier this way
         self.playbackcontrols = PlaybackControls(self)
-
         self.playbackcontrols.volume_slider.valueChanged.connect(self.setVolume)
         self.playbackcontrols.play_button.clicked.connect(self.playPauseClicked)
         self.playbackcontrols.stop_button.clicked.connect(self.stopButtonClicked)
         self.playbackcontrols.progress_slider.sliderMoved.connect(self.setPosition)
         self.playbackcontrols.skip_button.clicked.connect(self.skipButtonClicked)
-
         layout.addWidget(self.playbackcontrols)
         
-        # # Add the combined log widget
+        # # Add the combined log widget #currently un-used
         # self.error_log = CombinedErrorLog()
         # self.error_log.setMaximumHeight(200)
         # self.error_log.setMinimumHeight(150)
         # #self.error_log.setMaximumWidth(400)
         # layout.addWidget(self.error_log, alignment=Qt.AlignmentFlag.AlignBottom)
 
+        #self explanitory
         self.queuelabel = QLabel(self)
         self.queuelabel.setText("Queue:")
         self.queuelabel.setAlignment(Qt.AlignmentFlag.AlignLeft)
-
         layout.addWidget(self.queuelabel)
 
+        #box to display current queue
         self.queueboxMenu = QMenu(self)
         clearqueueaction = self.queueboxMenu.addAction("Clear Queue")
         clearqueueaction.triggered.connect(self.clearqueuepressed)
@@ -109,7 +115,6 @@ class MainWindow(QMainWindow):
         self.queuelist = {}
 
         self.youtubeClient= authrequest()
-
         if not self.youtubeClient.makeAuthRequest():
             sys.exit()
 
@@ -208,14 +213,17 @@ class MainWindow(QMainWindow):
             self.playbackcontrols.progress_slider.setValue(media_pos)
         elif state == vlc.State.Ended or state == vlc.State.Stopped:
             if self.queueBox.count() < 1:
+                self.playingLabel.setText("Playing: ")
                 return
             items = []
+            songname = ""
             for i in range(self.queueBox.count()):
                 items.append(self.queueBox.item(i).text())
             for item in items:
                 nextToPlay = self.queuelist[item]
                 try:
                     songstream = youtubefunc.ytdlpstuff.getAudioStream(nextToPlay)
+                    songname = self.queueBox.item(0).text()
                     self.queueBox.takeItem(0)
                     #self.queuelist.pop(item, None) #stopped coz realistically theres no reason to remove this
                     break
@@ -223,15 +231,8 @@ class MainWindow(QMainWindow):
                     continue
 
             self.queueBox.repaint()
-            try:
-                print(self.mediaplayer.will_play())
-                media = self.instance.media_new(songstream)
-                
-                self.mediaplayer.set_media(media)
-                if self.mediaplayer.play() == -1:
-                    print("something went wrong...") #TODO this still doesnt work and im going crazy
-            except Exception as e:
-                print(e)
+            
+            self.startPlayback(songstream, songname)
 
     def playPauseClicked(self):
         state = self.mediaplayer.get_state()
@@ -315,15 +316,10 @@ class MainWindow(QMainWindow):
         try:
             songstream = youtubefunc.ytdlpstuff.getAudioStream(id)
         except Exception as e:
-            # pixmapi = getattr(QStyle.StandardPixmap, 'SP_MessageBoxWarning')
-            # icon = self.style().standardIcon(pixmapi)
             print(e)
-            #dlg = QMessageBox.warning(self, "Error!", e.__str__())
             return
 
-        media = self.instance.media_new(songstream)
-        self.mediaplayer.set_media(media)
-        self.mediaplayer.play()
+        self.startPlayback(songstream, song)
 
     def songlistViewSelectionChanged(self):
         pass
@@ -351,6 +347,14 @@ class MainWindow(QMainWindow):
         #     self.playlistcombobox.addItem(x)
         self.playlistcombobox.setCurrentIndex(-1)
         
+    def startPlayback(self, streamLink, title):
+        media = self.instance.media_new(streamLink)
+        self.mediaplayer.set_media(media)
+        self.mediaplayer.play()
+        self.updatePlaying(title)
+    
+    def updatePlaying(self, title):
+        self.playingLabel.setText(f"Playing: {title}")
 
     def __del__(self):
         del self.youtubeClient
