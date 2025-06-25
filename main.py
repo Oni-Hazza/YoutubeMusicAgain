@@ -16,6 +16,8 @@ import yt_dlp
 from widgets.LogWidget import CombinedErrorLog
 from widgets.playbackControlsWidgets import PlaybackControls
 from youtubefunc.youtubelogin import authrequest
+from platformdirs import user_cache_dir
+from pathlib import Path
 
 import youtubefunc.ytdlpstuff
 import resources
@@ -23,6 +25,12 @@ import resources
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        appname = "ytmusic"
+        cache_dir = Path(user_cache_dir(appname))
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_file = cache_dir / "session.json"
+
         self.setWindowTitle("Youtube Music At Home")
 
         self.instance = vlc.Instance()
@@ -115,8 +123,8 @@ class MainWindow(QMainWindow):
         self.queuelist = {}
 
         self.youtubeClient= authrequest()
-        if not self.youtubeClient.authenticate():
-            
+        if not self.youtubeClient.authenticate(cache_file):
+
             sys.exit()
 
         self.populatePlaylistdict()

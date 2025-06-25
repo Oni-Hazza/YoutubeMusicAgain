@@ -6,6 +6,8 @@ import googleapiclient.discovery
 import googleapiclient.errors
 import json
 
+
+
 scopes = ["https://www.googleapis.com/auth/youtube.readonly"]
 
 class authrequest:
@@ -23,21 +25,21 @@ class authrequest:
         else:
             raise FileNotFoundError("client_secret.json not found in either ../ or current directory.")
     
-    def authenticate(self)->bool:
-        if self.loadFromExisting():
+    def authenticate(self, cache_file)->bool:
+        if self.loadFromExisting(cache_file):
             return True
-        elif self.makeAuthRequest():
+        elif self.makeAuthRequest(cache_file):
             return True
         else:
             return False
 
-    def makeAuthRequest(self)->bool:
+    def makeAuthRequest(self, cache_file)->bool:
         flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
             self.client_secrets_file, scopes)
         try:
             credentials = flow.run_local_server(timeout_seconds=20)
             
-            with open("session.json", "w", encoding="utf-8") as f:
+            with open(cache_file, "w", encoding="utf-8") as f:
                 f.write(credentials.to_json())
         except:
             return False
@@ -46,11 +48,14 @@ class authrequest:
         )
         return True
     
-    def loadFromExisting(self)->bool:
+    def loadFromExisting(self, cache_file)->bool:
         try:
-            with open("session.json", "r") as f:
-                data = f.read()
-                jsn = json.loads(data)
+            if cache_file.exists():
+                with open(cache_file, "r") as f:
+                    data = f.read()
+                    jsn = json.loads(data)
+            else:
+                return False
             
             test = google_auth_oauthlib.flow.google_auth_oauthlib.helpers.external_account_authorized_user.Credentials(
                 token=jsn["token"],
