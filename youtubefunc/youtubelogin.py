@@ -1,8 +1,10 @@
 import os
 
 import google_auth_oauthlib.flow
+import google_auth_oauthlib.helpers
 import googleapiclient.discovery
 import googleapiclient.errors
+import json
 
 scopes = ["https://www.googleapis.com/auth/youtube.readonly"]
 
@@ -20,15 +22,48 @@ class authrequest:
             self.client_secrets_file = fallback_path
         else:
             raise FileNotFoundError("client_secret.json not found in either ../ or current directory.")
+    
+    def authenticate(self)->bool:
+        if self.loadFromExisting():
+            return True
+        elif self.makeAuthRequest():
+            return True
+        else:
+            return False
 
     def makeAuthRequest(self)->bool:
         flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
             self.client_secrets_file, scopes)
         try:
             credentials = flow.run_local_server(timeout_seconds=20)
+            
+            with open("session.json", "w", encoding="utf-8") as f:
+                f.write(credentials.to_json())
         except:
             return False
         self.youtube = googleapiclient.discovery.build(
-            self.api_service_name, self.api_version, credentials=credentials
+            self.api_service_name, self.api_version, credentials=credentials,
         )
         return True
+    
+    def loadFromExisting(self)->bool:
+        try:
+            with open("session.json", "r") as f:
+                data = f.read()
+                jsn = json.loads(data)
+            
+            test = google_auth_oauthlib.flow.google_auth_oauthlib.helpers.external_account_authorized_user.Credentials(
+                token=jsn["token"],
+                #expiry=jsn["expiry"],
+                refresh_token=jsn["refresh_token"],
+                client_id=jsn["client_id"],
+                client_secret=jsn["client_secret"],
+                token_url=jsn["token_uri"],
+                scopes=jsn["scopes"],
+                universe_domain=jsn["universe_domain"]                
+                )
+            self.youtube = googleapiclient.discovery.build(self.api_service_name, self.api_version, credentials=test)
+            return True
+        except Exception as e:
+            print(e)
+            return False

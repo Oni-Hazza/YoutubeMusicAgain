@@ -115,7 +115,8 @@ class MainWindow(QMainWindow):
         self.queuelist = {}
 
         self.youtubeClient= authrequest()
-        if not self.youtubeClient.makeAuthRequest():
+        if not self.youtubeClient.authenticate():
+            
             sys.exit()
 
         self.populatePlaylistdict()
